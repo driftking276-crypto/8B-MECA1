@@ -1,0 +1,1377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Evaluación de Mecanografía - Fila Guía (10 Puntos)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Configuración base de pantalla completa sin scroll no deseado */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100dvh;
+      min-height: 100dvh;
+      max-height: 100dvh;
+      overflow: hidden;
+      font-family: 'Inter', sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+
+    .font-mono-code {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Cursor activo con animación suave */
+    @keyframes pulseCursor {
+      0%, 100% { border-color: #38bdf8; background-color: rgba(56, 189, 248, 0.22); }
+      50% { border-color: #0284c7; background-color: rgba(56, 189, 248, 0.08); }
+    }
+
+    .char-current {
+      border-bottom: 3px solid #38bdf8;
+      animation: pulseCursor 1.1s infinite ease-in-out;
+      border-radius: 4px 4px 0 0;
+      color: #ffffff;
+    }
+
+    .char-correct {
+      color: #34d399;
+    }
+
+    .char-error {
+      color: #fb7185;
+      background-color: rgba(244, 63, 94, 0.22);
+      border-bottom: 3px solid #f43f5e;
+      border-radius: 4px;
+    }
+
+    .char-pending {
+      color: #64748b;
+    }
+
+    /* Estilos de teclas interactivas */
+    .key-btn {
+      transition: transform 0.06s ease, background-color 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+      touch-action: manipulation;
+    }
+
+    .key-btn:active, .key-pressed {
+      transform: translateY(2px) scale(0.97);
+    }
+
+    .key-target {
+      background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%) !important;
+      border-color: #7dd3fc !important;
+      color: #ffffff !important;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+    }
+
+    .key-error-flash {
+      background: #e11d48 !important;
+      border-color: #fda4af !important;
+      color: #ffffff !important;
+    }
+
+    /* Tipografía fluida para el texto del ejercicio */
+    .exercise-text {
+      font-size: clamp(1.15rem, 4.4vw, 2.35rem);
+      line-height: 1.45;
+      letter-spacing: 0.04em;
+    }
+
+    /* Scrollbar discreta para el desglose final */
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 8px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body id="appRoot" class="flex flex-col w-screen h-[100dvh] overflow-hidden bg-slate-950 text-slate-100">
+
+  <!-- Input invisible pero accesible para invocar teclado nativo en celulares/tablets -->
+  <input
+    id="mobileHiddenInput"
+    type="text"
+    inputmode="text"
+    enterkeyhint="done"
+    autocapitalize="none"
+    autocomplete="off"
+    autocorrect="off"
+    spellcheck="false"
+    aria-label="Campo de escritura de mecanografía"
+    class="fixed opacity-0 pointer-events-none w-1 h-1 -top-10 left-0"
+  />
+
+  <!-- BARRA SUPERIOR COMPACTA -->
+  <header class="w-full shrink-0 bg-slate-900/90 border-b border-slate-800 px-2.5 sm:px-5 py-2 flex items-center justify-between gap-2 z-10">
+    <!-- Título y progreso -->
+    <div class="flex items-center gap-2 min-w-0">
+      <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center shrink-0">
+        <span class="font-mono-code font-bold text-sky-400 text-sm sm:text-base">Ñ</span>
+      </div>
+      <div class="min-w-0">
+        <h1 class="text-xs sm:text-sm md:text-base font-bold text-white truncate flex items-center gap-1.5">
+          <span>Fila Guía</span>
+          <span id="headerStudentBadge" class="hidden sm:inline-block px-2 py-0.5 rounded-md bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs font-medium truncate max-w-[160px] md:max-w-[240px]"></span>
+        </h1>
+        <div class="flex items-center gap-1.5 text-[11px] sm:text-xs text-slate-400">
+          <span>Ejercicio <strong id="headerStep" class="text-sky-400">1</strong>/10</span>
+          <span>•</span>
+          <span class="text-emerald-400 font-medium">10 pts</span>
+          <span id="headerStudentMobile" class="sm:hidden text-sky-300 truncate max-w-[95px]"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Métricas en vivo -->
+    <div class="flex items-center gap-1.5 sm:gap-3">
+      <div class="bg-slate-800/90 border border-slate-700/70 rounded-xl px-2 sm:px-3 py-1 text-center">
+        <div class="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400">Nota</div>
+        <div class="text-xs sm:text-sm font-bold text-emerald-400 font-mono-code">
+          <span id="liveScore">0.00</span><span class="text-slate-500 text-[10px] sm:text-xs">/10</span>
+        </div>
+      </div>
+
+      <div class="bg-slate-800/90 border border-slate-700/70 rounded-xl px-2 sm:px-3 py-1 text-center">
+        <div class="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400">Precisión</div>
+        <div id="liveAccuracy" class="text-xs sm:text-sm font-bold text-sky-400 font-mono-code">100%</div>
+      </div>
+
+      <div class="bg-slate-800/90 border border-slate-700/70 rounded-xl px-2 sm:px-3 py-1 text-center">
+        <div class="text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400">PPM</div>
+        <div id="liveWpm" class="text-xs sm:text-sm font-bold text-amber-400 font-mono-code">0</div>
+      </div>
+
+      <!-- Botón reinicio rápido -->
+      <button
+        id="btnResetAll"
+        type="button"
+        title="Reiniciar evaluación completa"
+        class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 border border-slate-700 text-slate-300 hover:text-white transition flex items-center gap-1.5 text-xs font-medium shrink-0"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span class="hidden md:inline">Reiniciar</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- BARRA DE PROGRESO VISUAL (10 SEGMENTOS) -->
+  <div class="w-full shrink-0 px-2.5 sm:px-5 pt-2">
+    <div id="progressSegments" class="grid grid-cols-10 gap-1 sm:gap-1.5 w-full">
+      <!-- Generado por JS -->
+    </div>
+  </div>
+
+  <!-- ÁREA CENTRAL DE PRÁCTICA (FLEX-1 PARA OCUPAR EL ESPACIO DISPONIBLE) -->
+  <main
+    id="practiceArea"
+    class="flex-1 min-h-0 w-full max-w-5xl mx-auto px-3 sm:px-6 py-1.5 sm:py-3 flex flex-col items-center justify-center gap-1.5 sm:gap-4 cursor-text"
+  >
+    <!-- Indicador de dedo y estado -->
+    <div class="flex flex-wrap items-center justify-center gap-2 text-center shrink-0">
+      <span id="fingerBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-sky-500/15 text-sky-300 border border-sky-400/30">
+        <span class="w-2 h-2 rounded-full bg-sky-400 animate-ping"></span>
+        <span id="fingerHintText">Meñique izquierdo → tecla A</span>
+      </span>
+
+      <button
+        id="btnResetLine"
+        type="button"
+        class="px-2.5 py-1 rounded-full text-xs font-medium bg-slate-800/90 hover:bg-slate-700 text-slate-400 hover:text-slate-200 border border-slate-700/80 transition"
+      >
+        Repetir línea
+      </button>
+    </div>
+
+    <!-- Tarjeta del texto a escribir -->
+    <div
+      id="textCard"
+      class="w-full bg-slate-900/95 border-2 border-slate-800 focus-within:border-sky-500/60 rounded-2xl p-3 sm:p-6 md:p-8 shadow-xl flex flex-col items-center justify-center text-center transition-colors relative overflow-hidden"
+    >
+      <div
+        id="targetDisplay"
+        class="font-mono-code font-semibold exercise-text break-words max-w-full tracking-wider leading-relaxed"
+        aria-live="polite"
+      >
+        <!-- Caracteres renderizados dinámicamente -->
+      </div>
+
+      <!-- Ayuda contextual móvil/escritorio -->
+      <p id="tapPrompt" class="mt-2 sm:mt-3 text-[11px] sm:text-xs text-slate-400 flex items-center gap-1.5">
+        <span class="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        Escribe con tu teclado o pulsa las teclas táctiles de abajo
+      </p>
+    </div>
+
+    <!-- Retroalimentación instantánea de error o avance -->
+    <div class="h-5 shrink-0 flex items-center justify-center">
+      <span id="statusFeedback" class="text-xs sm:text-sm font-medium text-slate-400 transition-opacity"></span>
+    </div>
+  </main>
+
+  <!-- TECLADO VISUAL E INTERACTIVO INFERIOR (ADAPTADO A MÓVIL Y ESCRITORIO) -->
+  <section
+    aria-label="Teclado interactivo fila guía"
+    class="w-full shrink-0 bg-slate-900/95 border-t border-slate-800 px-1.5 sm:px-4 pt-2 pb-2.5 sm:pb-4 flex flex-col items-center gap-2"
+  >
+    <!-- Controles del teclado -->
+    <div class="w-full max-w-4xl flex items-center justify-between px-1 text-[11px] sm:text-xs text-slate-400">
+      <div class="flex items-center gap-2">
+        <span class="inline-block w-2.5 h-2.5 rounded-sm bg-sky-500"></span>
+        <span>Tecla siguiente</span>
+      </div>
+
+      <label class="inline-flex items-center gap-2 cursor-pointer">
+        <input id="toggleFingerGuide" type="checkbox" checked class="sr-only peer" />
+        <div class="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all relative peer-checked:bg-sky-500"></div>
+        <span class="text-slate-300 font-medium">Guía de dedos</span>
+      </label>
+
+      <button
+        id="btnOpenMobileKb"
+        type="button"
+        class="sm:hidden px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-sky-400 font-medium"
+      >
+        Teclado móvil
+      </button>
+    </div>
+
+    <!-- Fila de 8 teclas: A S D F  |  J K L Ñ -->
+    <div class="w-full max-w-4xl flex items-stretch justify-center gap-1 sm:gap-2 md:gap-2.5">
+      <!-- Mano Izquierda -->
+      <div class="flex-1 grid grid-cols-4 gap-1 sm:gap-2">
+        <button type="button" data-key="a" class="key-btn flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">A</span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-rose-300/90 mt-0.5 truncate max-w-full px-0.5">Meñique</span>
+        </button>
+
+        <button type="button" data-key="s" class="key-btn flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">S</span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-amber-300/90 mt-0.5 truncate max-w-full px-0.5">Anular</span>
+        </button>
+
+        <button type="button" data-key="d" class="key-btn flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">D</span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-emerald-300/90 mt-0.5 truncate max-w-full px-0.5">Medio</span>
+        </button>
+
+        <button type="button" data-key="f" class="key-btn relative flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">F</span>
+          <span class="w-3 h-0.5 bg-sky-400 rounded-full my-0.5" title="Marca táctil"></span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-sky-300/90 truncate max-w-full px-0.5">Índice</span>
+        </button>
+      </div>
+
+      <!-- Separador central entre manos -->
+      <div class="w-1.5 sm:w-4 md:w-6 shrink-0 flex items-center justify-center">
+        <div class="w-0.5 h-8 bg-slate-800 rounded-full"></div>
+      </div>
+
+      <!-- Mano Derecha -->
+      <div class="flex-1 grid grid-cols-4 gap-1 sm:gap-2">
+        <button type="button" data-key="j" class="key-btn relative flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">J</span>
+          <span class="w-3 h-0.5 bg-sky-400 rounded-full my-0.5" title="Marca táctil"></span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-sky-300/90 truncate max-w-full px-0.5">Índice</span>
+        </button>
+
+        <button type="button" data-key="k" class="key-btn flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">K</span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-emerald-300/90 mt-0.5 truncate max-w-full px-0.5">Medio</span>
+        </button>
+
+        <button type="button" data-key="l" class="key-btn flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">L</span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-amber-300/90 mt-0.5 truncate max-w-full px-0.5">Anular</span>
+        </button>
+
+        <button type="button" data-key="ñ" class="key-btn flex flex-col items-center justify-center py-2.5 sm:py-3.5 md:py-4 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-white shadow">
+          <span class="font-mono-code font-bold text-base sm:text-xl md:text-2xl uppercase">Ñ</span>
+          <span class="finger-label text-[9px] sm:text-[11px] text-rose-300/90 mt-0.5 truncate max-w-full px-0.5">Meñique</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Barra Espaciadora -->
+    <div class="w-full max-w-xl px-4 sm:px-10">
+      <button
+        type="button"
+        data-key=" "
+        class="key-btn w-full py-2.5 sm:py-3 rounded-xl bg-slate-800 border-b-4 border-slate-950 border-t border-x border-slate-700 text-slate-200 font-semibold text-xs sm:text-sm tracking-widest uppercase flex items-center justify-center gap-2 shadow"
+      >
+        <span>ESPACIO</span>
+        <span class="finger-label text-[10px] sm:text-xs font-normal text-purple-300">(Pulgares)</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- MODAL INICIAL OBLIGATORIO: DATOS DEL ESTUDIANTE Y CONFIGURACIÓN WEB3FORMS -->
+  <div
+    id="startModal"
+    class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+  >
+    <div class="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-5 sm:p-7 space-y-5">
+      <div class="text-center space-y-1.5">
+        <div class="w-12 h-12 rounded-2xl bg-sky-500/15 border border-sky-400/30 flex items-center justify-center mx-auto mb-2">
+          <span class="font-mono-code font-extrabold text-sky-400 text-xl">Ñ</span>
+        </div>
+        <span class="inline-block px-3 py-0.5 rounded-full text-[11px] font-semibold bg-sky-500/15 text-sky-300 border border-sky-400/30">
+          Evaluación Calificada • 10 Puntos
+        </span>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-white">Mecanografía: Fila Guía</h2>
+        <p class="text-xs sm:text-sm text-slate-400">
+          10 ejercicios progresivos usando únicamente <span class="font-mono-code text-slate-200">a s d f j k l ñ</span>
+        </p>
+      </div>
+
+      <form id="startForm" class="space-y-4" novalidate>
+        <div>
+          <label for="studentNameInput" class="block text-xs sm:text-sm font-semibold text-slate-200 mb-1.5">
+            Nombre completo del estudiante <span class="text-rose-400">*</span>
+          </label>
+          <input
+            id="studentNameInput"
+            type="text"
+            required
+            placeholder="Ej. María Fernanda Gómez"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-sky-400 focus:outline-none text-sm sm:text-base text-white placeholder-slate-500 transition"
+          />
+          <p id="startNameError" class="hidden text-xs text-rose-400 mt-1">
+            Por favor, ingresa el nombre completo del estudiante para comenzar.
+          </p>
+        </div>
+
+        <div>
+          <label for="studentCourseInput" class="block text-xs font-medium text-slate-300 mb-1">
+            Curso / Paralelo <span class="text-slate-500">(opcional)</span>
+          </label>
+          <input
+            id="studentCourseInput"
+            type="text"
+            placeholder="Ej. 8vo EGB - Paralelo B"
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 focus:border-sky-400 focus:outline-none text-sm text-white placeholder-slate-500 transition"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="w-full py-3 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 text-slate-950 font-bold text-sm sm:text-base shadow-lg shadow-sky-500/25 transition"
+        >
+          Comenzar Evaluación
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL / PANTALLA FINAL DE CALIFICACIÓN (100% PANTALLA RESPONSIVO) -->
+  <div
+    id="resultsModal"
+    class="hidden fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-6 overflow-hidden"
+  >
+    <div class="w-full max-w-2xl max-h-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <!-- Encabezado Boleta -->
+      <div class="p-3.5 sm:p-5 bg-gradient-to-r from-slate-900 via-sky-950/40 to-slate-900 border-b border-slate-800 text-center shrink-0">
+        <span class="inline-block px-3 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 mb-1.5">
+          Evaluación Completada
+        </span>
+        <h2 class="text-base sm:text-xl font-extrabold text-white">Calificación Final de Mecanografía</h2>
+        <p id="finalStudentInfo" class="text-xs sm:text-sm font-semibold text-sky-300 mt-0.5"></p>
+
+        <!-- Nota Grande -->
+        <div class="mt-2 sm:mt-3 flex items-baseline justify-center gap-1">
+          <span id="finalGradeValue" class="text-3xl sm:text-5xl font-black font-mono-code text-emerald-400">10.00</span>
+          <span class="text-base sm:text-xl font-bold text-slate-500">/ 10</span>
+        </div>
+        <p id="finalGradeMessage" class="text-xs font-medium text-slate-300 mt-0.5">¡Excelente dominio de la fila guía!</p>
+
+        <!-- Resumen de métricas -->
+        <div class="grid grid-cols-4 gap-1.5 sm:gap-2.5 mt-3">
+          <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl p-1.5 sm:p-2.5">
+            <div class="text-[9px] sm:text-[11px] text-slate-400">Velocidad</div>
+            <div id="finalWpm" class="text-xs sm:text-base font-bold font-mono-code text-amber-400">0 PPM</div>
+          </div>
+          <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl p-1.5 sm:p-2.5">
+            <div class="text-[9px] sm:text-[11px] text-slate-400">Precisión</div>
+            <div id="finalAccuracy" class="text-xs sm:text-base font-bold font-mono-code text-sky-400">100%</div>
+          </div>
+          <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl p-1.5 sm:p-2.5">
+            <div class="text-[9px] sm:text-[11px] text-slate-400">Tiempo</div>
+            <div id="finalDuration" class="text-xs sm:text-base font-bold font-mono-code text-purple-300">00:00</div>
+          </div>
+          <div class="bg-slate-800/80 border border-slate-700/70 rounded-xl p-1.5 sm:p-2.5">
+            <div class="text-[9px] sm:text-[11px] text-slate-400">Errores</div>
+            <div id="finalErrors" class="text-xs sm:text-base font-bold font-mono-code text-rose-400">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Desglose desplazable de los 10 ejercicios -->
+      <div class="flex-1 min-h-0 overflow-y-auto custom-scroll p-3 sm:p-4 space-y-2">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-1">Desglose por ejercicio (1.00 pt c/u)</h3>
+        <div id="breakdownList" class="space-y-1.5">
+          <!-- Generado dinámicamente -->
+        </div>
+      </div>
+
+      <!-- Pie de boleta con estado discreto de envío y acciones -->
+      <div class="p-3 sm:p-4 bg-slate-950/90 border-t border-slate-800 shrink-0 space-y-2.5">
+        <!-- Aviso discreto del estado de envío en segundo plano -->
+        <div id="sendStatusBox" class="hidden rounded-xl px-3 py-2 text-xs font-medium flex items-center justify-between gap-2">
+          <span id="sendStatusText"></span>
+          <button
+            id="btnRetrySend"
+            type="button"
+            class="hidden px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-400/40 text-rose-200 font-semibold text-[11px] shrink-0 transition"
+          >
+            Reintentar envío
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between gap-2 pt-0.5">
+          <div class="flex items-center gap-1.5 text-xs text-amber-400 font-semibold">
+            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <span>Evaluación bloqueada por el sistema</span>
+          </div>
+
+          <button
+            id="btnOpenUnlockModal"
+            type="button"
+            class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition flex items-center gap-1.5"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+            </svg>
+            <span>Desbloquear (Docente)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE DESBLOQUEO DOCENTE (PIN 1955) -->
+  <div
+    id="unlockModal"
+    class="hidden fixed inset-0 z-[60] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4"
+  >
+    <div class="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-5 sm:p-6 space-y-4">
+      <div class="text-center space-y-1">
+        <div class="w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center mx-auto mb-2 text-amber-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-extrabold text-white">Acceso del Docente</h3>
+        <p class="text-xs text-slate-400">
+          Ingresa el PIN de autorización para desbloquear la evaluación y permitir un nuevo intento.
+        </p>
+      </div>
+
+      <form id="unlockForm" class="space-y-3" novalidate>
+        <div>
+          <input
+            id="teacherPinInput"
+            type="password"
+            inputmode="numeric"
+            maxlength="8"
+            placeholder="••••"
+            autocomplete="off"
+            class="w-full px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 focus:border-amber-400 focus:outline-none text-center font-mono-code text-xl tracking-[0.4em] text-white placeholder-slate-600 transition"
+          />
+          <p id="pinErrorMsg" class="hidden text-xs text-rose-400 text-center mt-1.5 font-medium">
+            PIN incorrecto. Verifica con tu docente.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <button
+            id="btnCancelUnlock"
+            type="button"
+            class="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs sm:text-sm transition"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            class="py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:bg-amber-600 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition"
+          >
+            Desbloquear
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * =========================================================================
+     * CONFIGURACIÓN DEL DOCENTE (WEB3FORMS Y PIN DE DESBLOQUEO)
+     * =========================================================================
+     */
+    const WEB3FORMS_ACCESS_KEY = '4484a2ac-b84c-49b2-85d8-6660a4377050';
+    const TEACHER_UNLOCK_PIN = '1955';
+    const LOCK_STORAGE_KEY = 'mecanografia_fila_guia_lock_v1';
+
+    // 10 ejercicios progresivos exclusivamente con las teclas: a s d f j k l ñ
+    const EXERCISES = [
+      'asdf jklñ asdf jklñ',
+      'fdsa ñlkj fdsa ñlkj',
+      'ajaj sksk dldl fñfñ',
+      'asal faja sala lada',
+      'dada fada jala kala',
+      'salsa falsa falda salada',
+      'la sala da a la falda',
+      'la faja salada da as',
+      'ada jala la falda salada',
+      'la dada falsa salda la sala'
+    ];
+
+    // Mapa descriptivo de cada tecla de la fila guía
+    const FINGER_MAP = {
+      'a': 'Meñique izquierdo → tecla A',
+      's': 'Anular izquierdo → tecla S',
+      'd': 'Medio izquierdo → tecla D',
+      'f': 'Índice izquierdo → tecla F',
+      'j': 'Índice derecho → tecla J',
+      'k': 'Medio derecho → tecla K',
+      'l': 'Anular derecho → tecla L',
+      'ñ': 'Meñique derecho → tecla Ñ',
+      ' ': 'Pulgares → Barra Espaciadora'
+    };
+
+    // Perfil del estudiante actual
+    let studentProfile = {
+      name: '',
+      course: ''
+    };
+
+    // Estado global de la evaluación
+    let state = {
+      currentIndex: 0,
+      charIndex: 0,
+      lineErrors: 0,
+      charStatuses: [],
+      results: [],
+      startTime: null,
+      lineStartTime: null,
+      timerInterval: null,
+      totalKeystrokes: 0,
+      totalCorrectChars: 0,
+      totalErrors: 0,
+      isFinished: false,
+      isComposing: false,
+      lastInputTime: 0
+    };
+
+    let lastReportSummary = null;
+
+    // Referencias DOM principales
+    const elAppRoot = document.getElementById('appRoot');
+    const elHiddenInput = document.getElementById('mobileHiddenInput');
+    const elHeaderStep = document.getElementById('headerStep');
+    const elHeaderStudentBadge = document.getElementById('headerStudentBadge');
+    const elHeaderStudentMobile = document.getElementById('headerStudentMobile');
+    const elLiveScore = document.getElementById('liveScore');
+    const elLiveAccuracy = document.getElementById('liveAccuracy');
+    const elLiveWpm = document.getElementById('liveWpm');
+    const elProgressSegments = document.getElementById('progressSegments');
+    const elFingerHintText = document.getElementById('fingerHintText');
+    const elTargetDisplay = document.getElementById('targetDisplay');
+    const elStatusFeedback = document.getElementById('statusFeedback');
+    const elStartModal = document.getElementById('startModal');
+    const elResultsModal = document.getElementById('resultsModal');
+    const elUnlockModal = document.getElementById('unlockModal');
+    const elToggleFingerGuide = document.getElementById('toggleFingerGuide');
+
+    /**
+     * Verifica si existe un modal abierto bloqueando la captura de teclas
+     */
+    function isAnyModalOpen() {
+      return (
+        !elStartModal.classList.contains('hidden') ||
+        !elResultsModal.classList.contains('hidden') ||
+        !elUnlockModal.classList.contains('hidden')
+      );
+    }
+
+    /**
+     * Guarda el bloqueo persistente en localStorage al terminar la prueba
+     */
+    function savePersistentLock(reportData, alreadySent = false) {
+      try {
+        localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify({
+          locked: true,
+          report: reportData,
+          sent: alreadySent
+        }));
+      } catch (e) {
+        // Ignorar errores de cuota si el navegador restringe almacenamiento
+      }
+    }
+
+    /**
+     * Actualiza el indicador de envío dentro del bloqueo persistente
+     */
+    function markLockReportAsSent() {
+      try {
+        const raw = localStorage.getItem(LOCK_STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.locked) {
+          parsed.sent = true;
+          localStorage.setItem(LOCK_STORAGE_KEY, JSON.stringify(parsed));
+        }
+      } catch (e) {
+        // Ignorar
+      }
+    }
+
+    /**
+     * Elimina el bloqueo persistente tras validar el PIN del docente
+     */
+    function clearPersistentLock() {
+      try {
+        localStorage.removeItem(LOCK_STORAGE_KEY);
+      } catch (e) {
+        // Ignorar
+      }
+    }
+
+    /**
+     * Verifica si la aplicación estaba bloqueada antes de recargar o cerrar la pestaña
+     */
+    function checkAndRestorePersistentLock() {
+      try {
+        const raw = localStorage.getItem(LOCK_STORAGE_KEY);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.locked && parsed.report) {
+          lastReportSummary = parsed.report;
+          studentProfile.name = parsed.report.studentName || '';
+          studentProfile.course = parsed.report.studentCourse === 'No especificado' ? '' : (parsed.report.studentCourse || '');
+          state.isFinished = true;
+
+          elStartModal.classList.add('hidden');
+          renderResultsModalFromSummary(parsed.report);
+
+          const statusBox = document.getElementById('sendStatusBox');
+          const statusText = document.getElementById('sendStatusText');
+          const retryBtn = document.getElementById('btnRetrySend');
+
+          if (parsed.sent) {
+            statusBox.className = 'rounded-xl px-3 py-2 text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center justify-between gap-2';
+            statusText.textContent = '✓ Resultados enviados correctamente';
+            retryBtn.classList.add('hidden');
+            statusBox.classList.remove('hidden');
+          } else if (WEB3FORMS_ACCESS_KEY && WEB3FORMS_ACCESS_KEY !== 'TU_ACCESS_KEY_AQUI') {
+            submitResultsInBackground();
+          }
+          return true;
+        }
+      } catch (e) {
+        // Ignorar JSON corrupto
+      }
+      return false;
+    }
+
+    /**
+     * Ajusta la altura exacta del contenedor al área visible (útil al abrir teclado móvil)
+     */
+    function syncViewportHeight() {
+      if (window.visualViewport) {
+        elAppRoot.style.height = `${window.visualViewport.height}px`;
+      } else {
+        elAppRoot.style.height = '100dvh';
+      }
+    }
+
+    /**
+     * Inicializa o reinicia la evaluación completa desde el ejercicio 1
+     */
+    function initEvaluation() {
+      if (state.timerInterval) {
+        clearInterval(state.timerInterval);
+      }
+
+      state = {
+        currentIndex: 0,
+        charIndex: 0,
+        lineErrors: 0,
+        charStatuses: [],
+        results: [],
+        startTime: null,
+        lineStartTime: null,
+        timerInterval: null,
+        totalKeystrokes: 0,
+        totalCorrectChars: 0,
+        totalErrors: 0,
+        isFinished: false,
+        isComposing: false,
+        lastInputTime: 0
+      };
+
+      // Mostrar nombre del estudiante en el encabezado
+      if (studentProfile.name) {
+        elHeaderStudentBadge.textContent = studentProfile.course
+          ? `${studentProfile.name} (${studentProfile.course})`
+          : studentProfile.name;
+        elHeaderStudentBadge.classList.remove('hidden');
+        elHeaderStudentMobile.textContent = `• ${studentProfile.name}`;
+      }
+
+      elResultsModal.classList.add('hidden');
+      elStatusFeedback.textContent = '';
+      elHiddenInput.value = '';
+
+      renderProgressSegments();
+      renderCurrentExercise();
+      updateLiveMetrics();
+      focusMobileInput();
+    }
+
+    /**
+     * Reinicia únicamente el ejercicio actual
+     */
+    function resetCurrentLine() {
+      if (state.isFinished || isAnyModalOpen()) return;
+      state.charIndex = 0;
+      state.lineErrors = 0;
+      state.lineStartTime = performance.now();
+      state.charStatuses = new Array(EXERCISES[state.currentIndex].length).fill('pending');
+      elStatusFeedback.textContent = 'Línea reiniciada. ¡Inténtalo de nuevo!';
+      elStatusFeedback.className = 'text-xs sm:text-sm font-medium text-sky-400';
+      renderCurrentExercise();
+      focusMobileInput();
+    }
+
+    /**
+     * Dibuja los 10 segmentos superiores de progreso
+     */
+    function renderProgressSegments() {
+      elProgressSegments.innerHTML = '';
+      for (let i = 0; i < EXERCISES.length; i++) {
+        const seg = document.createElement('div');
+        let colorClass = 'bg-slate-800';
+        if (i < state.currentIndex || state.isFinished) {
+          const res = state.results[i];
+          if (res && res.score >= 0.9) colorClass = 'bg-emerald-500';
+          else if (res && res.score >= 0.7) colorClass = 'bg-amber-400';
+          else colorClass = 'bg-rose-500';
+        } else if (i === state.currentIndex) {
+          colorClass = 'bg-sky-400 animate-pulse';
+        }
+        seg.className = `h-1.5 sm:h-2 rounded-full transition-all duration-300 ${colorClass}`;
+        elProgressSegments.appendChild(seg);
+      }
+    }
+
+    /**
+     * Renderiza el texto objetivo del ejercicio actual y actualiza el teclado visual
+     */
+    function renderCurrentExercise() {
+      const targetText = EXERCISES[state.currentIndex];
+      if (state.charStatuses.length !== targetText.length) {
+        state.charStatuses = new Array(targetText.length).fill('pending');
+      }
+
+      elHeaderStep.textContent = state.currentIndex + 1;
+      elTargetDisplay.innerHTML = '';
+
+      for (let i = 0; i < targetText.length; i++) {
+        const span = document.createElement('span');
+        const ch = targetText[i];
+        span.textContent = ch === ' ' ? '\u00A0' : ch;
+        span.className = 'inline-block px-[1px] transition-colors duration-75 ';
+
+        if (i < state.charIndex) {
+          span.className += state.charStatuses[i] === 'error' ? 'char-error' : 'char-correct';
+        } else if (i === state.charIndex) {
+          span.className += 'char-current';
+        } else {
+          span.className += 'char-pending';
+        }
+
+        elTargetDisplay.appendChild(span);
+      }
+
+      highlightTargetKey(targetText[state.charIndex]);
+    }
+
+    /**
+     * Resalta la tecla siguiente en el teclado visual y actualiza la pista de dedo
+     */
+    function highlightTargetKey(nextChar) {
+      document.querySelectorAll('.key-btn').forEach(btn => {
+        btn.classList.remove('key-target');
+      });
+
+      if (!nextChar) return;
+      const normalized = nextChar.toLowerCase();
+      elFingerHintText.textContent = FINGER_MAP[normalized] || `Presiona "${normalized.toUpperCase()}"`;
+
+      const targetBtn = document.querySelector(`.key-btn[data-key="${normalized}"]`);
+      if (targetBtn) {
+        targetBtn.classList.add('key-target');
+      }
+    }
+
+    /**
+     * Efecto visual de pulsación en el teclado virtual
+     */
+    function flashVirtualKey(char, isError = false) {
+      const normalized = char.toLowerCase();
+      const btn = document.querySelector(`.key-btn[data-key="${normalized}"]`);
+      if (!btn) return;
+
+      btn.classList.add('key-pressed');
+      if (isError) btn.classList.add('key-error-flash');
+
+      setTimeout(() => {
+        btn.classList.remove('key-pressed', 'key-error-flash');
+      }, 140);
+    }
+
+    /**
+     * Inicia el temporizador global al detectar la primera pulsación
+     */
+    function ensureTimersStarted() {
+      const now = performance.now();
+      if (!state.startTime) {
+        state.startTime = now;
+        state.timerInterval = setInterval(updateLiveMetrics, 400);
+      }
+      if (!state.lineStartTime) {
+        state.lineStartTime = now;
+      }
+    }
+
+    /**
+     * Actualiza nota acumulada, precisión y palabras por minuto (PPM) en vivo
+     */
+    function updateLiveMetrics() {
+      const completedScore = state.results.reduce((acc, item) => acc + item.score, 0);
+      elLiveScore.textContent = completedScore.toFixed(2);
+
+      const accuracy = state.totalKeystrokes > 0
+        ? Math.max(0, Math.round((state.totalCorrectChars / state.totalKeystrokes) * 100))
+        : 100;
+      elLiveAccuracy.textContent = `${accuracy}%`;
+
+      if (state.startTime && state.totalCorrectChars > 0) {
+        const elapsedMinutes = Math.max((performance.now() - state.startTime) / 60000, 1 / 60);
+        const wpm = Math.round((state.totalCorrectChars / 5) / elapsedMinutes);
+        elLiveWpm.textContent = String(wpm);
+      } else {
+        elLiveWpm.textContent = '0';
+      }
+    }
+
+    /**
+     * Procesa cada carácter ingresado por teclado físico, teclado móvil o teclas en pantalla
+     */
+    function handleCharacterInput(rawChar) {
+      if (state.isFinished || isAnyModalOpen() || !rawChar) return;
+
+      const char = rawChar.normalize('NFC').toLowerCase();
+      const targetText = EXERCISES[state.currentIndex];
+      if (state.charIndex >= targetText.length) return;
+
+      ensureTimersStarted();
+      state.totalKeystrokes++;
+
+      const expectedChar = targetText[state.charIndex];
+
+      if (char === expectedChar) {
+        if (state.charStatuses[state.charIndex] !== 'error') {
+          state.charStatuses[state.charIndex] = 'correct';
+        }
+        state.totalCorrectChars++;
+        state.charIndex++;
+        flashVirtualKey(char, false);
+
+        elStatusFeedback.textContent = '';
+
+        // Verificar si se completó el ejercicio actual
+        if (state.charIndex >= targetText.length) {
+          completeCurrentExercise();
+        } else {
+          renderCurrentExercise();
+        }
+      } else {
+        state.lineErrors++;
+        state.totalErrors++;
+        state.charStatuses[state.charIndex] = 'error';
+        flashVirtualKey(char, true);
+
+        const expectedLabel = expectedChar === ' ' ? 'ESPACIO' : expectedChar.toUpperCase();
+        const typedLabel = char === ' ' ? 'ESPACIO' : char.toUpperCase();
+        elStatusFeedback.textContent = `Tecla incorrecta ("${typedLabel}"). Se esperaba "${expectedLabel}".`;
+        elStatusFeedback.className = 'text-xs sm:text-sm font-medium text-rose-400';
+
+        renderCurrentExercise();
+      }
+
+      updateLiveMetrics();
+    }
+
+    /**
+     * Calcula la calificación del ejercicio completado (sobre 1.00 punto) y avanza
+     */
+    function completeCurrentExercise() {
+      const targetText = EXERCISES[state.currentIndex];
+      const elapsedSec = state.lineStartTime
+        ? Math.max(0.5, (performance.now() - state.lineStartTime) / 1000)
+        : 1;
+
+      const penaltyPerError = 1 / targetText.length;
+      const rawScore = Math.max(0, 1 - state.lineErrors * penaltyPerError);
+      const roundedScore = Math.round(rawScore * 100) / 100;
+
+      const wpm = Math.round((targetText.length / 5) / (elapsedSec / 60));
+
+      state.results.push({
+        index: state.currentIndex + 1,
+        text: targetText,
+        errors: state.lineErrors,
+        score: roundedScore,
+        elapsedSec: elapsedSec.toFixed(1),
+        wpm
+      });
+
+      if (state.currentIndex + 1 < EXERCISES.length) {
+        state.currentIndex++;
+        state.charIndex = 0;
+        state.lineErrors = 0;
+        state.charStatuses = new Array(EXERCISES[state.currentIndex].length).fill('pending');
+        state.lineStartTime = performance.now();
+
+        elStatusFeedback.textContent = `¡Ejercicio ${state.currentIndex} completado! (+${roundedScore.toFixed(2)} pts)`;
+        elStatusFeedback.className = 'text-xs sm:text-sm font-semibold text-emerald-400';
+
+        renderProgressSegments();
+        renderCurrentExercise();
+        updateLiveMetrics();
+      } else {
+        finishEvaluation();
+      }
+    }
+
+    /**
+     * Formatea segundos totales en formato MM:SS
+     */
+    function formatDuration(totalSeconds) {
+      const mins = Math.floor(totalSeconds / 60);
+      const secs = Math.floor(totalSeconds % 60);
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    /**
+     * Finaliza la evaluación, guarda el bloqueo persistente y muestra la boleta final
+     */
+    function finishEvaluation() {
+      state.isFinished = true;
+      if (state.timerInterval) {
+        clearInterval(state.timerInterval);
+        state.timerInterval = null;
+      }
+
+      renderProgressSegments();
+      updateLiveMetrics();
+
+      const totalScore = Math.min(
+        10,
+        Math.round(state.results.reduce((acc, item) => acc + item.score, 0) * 100) / 100
+      );
+      const totalElapsedSec = state.startTime
+        ? Math.max(1, (performance.now() - state.startTime) / 1000)
+        : 1;
+      const avgWpm = Math.round((state.totalCorrectChars / 5) / (totalElapsedSec / 60));
+      const accuracy = state.totalKeystrokes > 0
+        ? Math.max(0, Math.round((state.totalCorrectChars / state.totalKeystrokes) * 100))
+        : 100;
+
+      const summary = {
+        studentName: studentProfile.name || 'Estudiante',
+        studentCourse: studentProfile.course || 'No especificado',
+        dateFormatted: new Date().toLocaleString('es-EC', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        }),
+        totalScore: totalScore.toFixed(2),
+        avgWpm,
+        accuracy,
+        durationFormatted: formatDuration(totalElapsedSec),
+        totalErrors: state.totalErrors,
+        totalKeystrokes: state.totalKeystrokes,
+        exercises: state.results.map(item => ({ ...item }))
+      };
+
+      lastReportSummary = summary;
+      savePersistentLock(summary, false);
+      renderResultsModalFromSummary(summary);
+      submitResultsInBackground();
+    }
+
+    /**
+     * Rellena y muestra el modal de resultados bloqueado a partir de un objeto resumen
+     */
+    function renderResultsModalFromSummary(summary) {
+      const scoreNum = parseFloat(summary.totalScore) || 0;
+
+      document.getElementById('finalStudentInfo').textContent =
+        summary.studentCourse && summary.studentCourse !== 'No especificado'
+          ? `${summary.studentName} • ${summary.studentCourse}`
+          : summary.studentName;
+
+      const gradeEl = document.getElementById('finalGradeValue');
+      gradeEl.textContent = summary.totalScore;
+      gradeEl.className = 'text-3xl sm:text-5xl font-black font-mono-code ' + (
+        scoreNum >= 9 ? 'text-emerald-400' :
+        scoreNum >= 7 ? 'text-sky-400' :
+        scoreNum >= 5 ? 'text-amber-400' : 'text-rose-400'
+      );
+
+      const msgEl = document.getElementById('finalGradeMessage');
+      if (scoreNum >= 9.5) msgEl.textContent = '¡Sobresaliente! Dominio total de la fila guía.';
+      else if (scoreNum >= 8) msgEl.textContent = '¡Muy buen trabajo! Excelente precisión y ritmo.';
+      else if (scoreNum >= 7) msgEl.textContent = '¡Aprobado! Sigue practicando para reducir errores.';
+      else msgEl.textContent = 'Necesitas reforzar la posición base de tus dedos.';
+
+      document.getElementById('finalWpm').textContent = `${summary.avgWpm} PPM`;
+      document.getElementById('finalAccuracy').textContent = `${summary.accuracy}%`;
+      document.getElementById('finalDuration').textContent = summary.durationFormatted;
+      document.getElementById('finalErrors').textContent = String(summary.totalErrors);
+
+      const listEl = document.getElementById('breakdownList');
+      listEl.innerHTML = '';
+
+      (summary.exercises || []).forEach(item => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between gap-2 bg-slate-800/70 border border-slate-700/60 rounded-xl px-3 py-2 text-xs';
+
+        const scoreBadgeColor = item.score >= 0.95
+          ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+          : item.score >= 0.7
+            ? 'text-amber-300 bg-amber-500/15 border-amber-500/30'
+            : 'text-rose-400 bg-rose-500/15 border-rose-500/30';
+
+        row.innerHTML = `
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <span class="font-bold text-slate-400">#${item.index}</span>
+              <span class="font-mono-code text-slate-200 truncate">${item.text}</span>
+            </div>
+            <div class="text-[11px] text-slate-400 mt-0.5">
+              ${item.wpm} PPM • ${item.elapsedSec}s • ${item.errors} ${item.errors === 1 ? 'error' : 'errores'}
+            </div>
+          </div>
+          <span class="px-2 py-1 rounded-lg border font-mono-code font-bold shrink-0 ${scoreBadgeColor}">
+            ${Number(item.score).toFixed(2)} / 1.00
+          </span>
+        `;
+        listEl.appendChild(row);
+      });
+
+      elResultsModal.classList.remove('hidden');
+    }
+
+    /**
+     * Construye el informe textual completo para enviarlo por Web3Forms
+     */
+    function buildDetailedTextReport(summary) {
+      const lines = [
+        '==================================================',
+        'REPORTE DE EVALUACIÓN DE MECANOGRAFÍA - FILA GUÍA',
+        '==================================================',
+        `Estudiante: ${summary.studentName}`,
+        `Curso / Paralelo: ${summary.studentCourse}`,
+        `Fecha y hora: ${summary.dateFormatted}`,
+        '--------------------------------------------------',
+        `CALIFICACIÓN FINAL: ${summary.totalScore} / 10.00 puntos`,
+        `Velocidad promedio: ${summary.avgWpm} PPM`,
+        `Precisión global: ${summary.accuracy}%`,
+        `Tiempo total: ${summary.durationFormatted}`,
+        `Errores totales: ${summary.totalErrors} (de ${summary.totalKeystrokes} pulsaciones)`,
+        '--------------------------------------------------',
+        'DESGLOSE POR EJERCICIO (1.00 PT C/U):'
+      ];
+
+      (summary.exercises || []).forEach(ex => {
+        lines.push(
+          `Ejercicio ${String(ex.index).padStart(2, '0')}: "${ex.text}" -> Nota: ${Number(ex.score).toFixed(2)}/1.00 | ${ex.wpm} PPM | ${ex.elapsedSec}s | Errores: ${ex.errors}`
+        );
+      });
+
+      lines.push('==================================================');
+      return lines.join('\n');
+    }
+
+    /**
+     * Envía automáticamente el reporte detallado a través de Web3Forms API
+     */
+    async function submitResultsInBackground() {
+      if (!lastReportSummary) return;
+
+      const statusBox = document.getElementById('sendStatusBox');
+      const statusText = document.getElementById('sendStatusText');
+      const retryBtn = document.getElementById('btnRetrySend');
+
+      if (!WEB3FORMS_ACCESS_KEY || WEB3FORMS_ACCESS_KEY === 'TU_ACCESS_KEY_AQUI') {
+        statusBox.classList.add('hidden');
+        return;
+      }
+
+      statusBox.className = 'rounded-xl px-3 py-2 text-xs font-medium bg-sky-500/15 border border-sky-400/30 text-sky-300 flex items-center justify-between gap-2';
+      statusText.textContent = 'Enviando resultados al docente...';
+      retryBtn.classList.add('hidden');
+      statusBox.classList.remove('hidden');
+
+      try {
+        const payload = {
+          access_key: WEB3FORMS_ACCESS_KEY,
+          subject: `Mecanografía Fila Guía - ${lastReportSummary.studentName} (${lastReportSummary.totalScore}/10)`,
+          from_name: 'Evaluación Mecanografía Fila Guía',
+          estudiante: lastReportSummary.studentName,
+          curso: lastReportSummary.studentCourse,
+          calificacion: `${lastReportSummary.totalScore} / 10.00`,
+          velocidad_ppm: `${lastReportSummary.avgWpm} PPM`,
+          precision: `${lastReportSummary.accuracy}%`,
+          tiempo_total: lastReportSummary.durationFormatted,
+          errores_totales: String(lastReportSummary.totalErrors),
+          detalle_completo: buildDetailedTextReport(lastReportSummary)
+        };
+
+        const response = await fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+          markLockReportAsSent();
+          statusBox.className = 'rounded-xl px-3 py-2 text-xs font-medium bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center justify-between gap-2';
+          statusText.textContent = '✓ Resultados enviados correctamente';
+          retryBtn.classList.add('hidden');
+        } else {
+          throw new Error(data.message || 'Error en la respuesta del servidor');
+        }
+      } catch (err) {
+        statusBox.className = 'rounded-xl px-3 py-2 text-xs font-medium bg-rose-500/15 border border-rose-500/30 text-rose-300 flex items-center justify-between gap-2';
+        statusText.textContent = 'No se pudo enviar automáticamente. Verifica tu conexión.';
+        retryBtn.classList.remove('hidden');
+      }
+    }
+
+    /**
+     * Enfoca el input oculto para permitir escritura con teclado nativo en móviles
+     */
+    function focusMobileInput() {
+      if (isAnyModalOpen()) return;
+      elHiddenInput.focus({ preventScroll: true });
+    }
+
+    // --- EVENT LISTENERS ---
+
+    // 0. Formulario de inicio obligatorio (Nombre del estudiante y curso opcional)
+    document.getElementById('startForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const nameInput = document.getElementById('studentNameInput');
+      const courseInput = document.getElementById('studentCourseInput');
+      const errorText = document.getElementById('startNameError');
+
+      const trimmedName = nameInput.value.trim();
+      if (!trimmedName) {
+        errorText.classList.remove('hidden');
+        nameInput.classList.add('border-rose-500');
+        nameInput.focus();
+        return;
+      }
+
+      errorText.classList.add('hidden');
+      nameInput.classList.remove('border-rose-500');
+
+      studentProfile.name = trimmedName;
+      studentProfile.course = courseInput.value.trim();
+
+      elStartModal.classList.add('hidden');
+      initEvaluation();
+    });
+
+    // 1. Teclado físico (Escritorio / Laptops / Teclados Bluetooth)
+    document.addEventListener('keydown', (e) => {
+      if (isAnyModalOpen() || state.isFinished) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // Ignorar eventos IME de composición móvil (keyCode 229 / Unidentified)
+      if (e.isComposing || e.keyCode === 229 || e.key === 'Unidentified') return;
+
+      if (e.key.length === 1) {
+        e.preventDefault();
+        state.lastInputTime = performance.now();
+        handleCharacterInput(e.key);
+      }
+    });
+
+    // 2. Soporte IME y teclado virtual en Android / iOS (incluyendo letra ñ/Ñ)
+    elHiddenInput.addEventListener('compositionstart', () => {
+      state.isComposing = true;
+    });
+
+    elHiddenInput.addEventListener('compositionend', (e) => {
+      state.isComposing = false;
+      const text = (e.data || elHiddenInput.value || '').normalize('NFC');
+      elHiddenInput.value = '';
+      if (text) {
+        state.lastInputTime = performance.now();
+        for (const ch of text) {
+          handleCharacterInput(ch);
+        }
+      }
+    });
+
+    elHiddenInput.addEventListener('input', () => {
+      if (state.isComposing) return;
+      // Evitar doble disparo si keydown ya procesó la tecla hace menos de 30ms
+      if (performance.now() - state.lastInputTime < 30) {
+        elHiddenInput.value = '';
+        return;
+      }
+      const val = elHiddenInput.value.normalize('NFC');
+      elHiddenInput.value = '';
+      if (val) {
+        for (const ch of val) {
+          handleCharacterInput(ch);
+        }
+      }
+    });
+
+    // 3. Teclas interactivas táctiles en pantalla (Pointer Events sin retraso de 300ms)
+    document.querySelectorAll('.key-btn').forEach(btn => {
+      btn.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (isAnyModalOpen() || state.isFinished) return;
+        const keyChar = btn.getAttribute('data-key');
+        if (keyChar !== null) {
+          state.lastInputTime = performance.now();
+          handleCharacterInput(keyChar);
+        }
+      });
+    });
+
+    // 4. Enfocar teclado móvil al tocar el área de práctica o el botón dedicado
+    document.getElementById('practiceArea').addEventListener('click', focusMobileInput);
+    document.getElementById('btnOpenMobileKb').addEventListener('click', (e) => {
+      e.stopPropagation();
+      focusMobileInput();
+    });
+
+    // 5. Botones de reinicio, reintento de envío y desbloqueo docente con PIN
+    document.getElementById('btnResetAll').addEventListener('click', () => {
+      if (state.isFinished) return;
+      initEvaluation();
+    });
+
+    document.getElementById('btnRetrySend').addEventListener('click', submitResultsInBackground);
+
+    document.getElementById('btnOpenUnlockModal').addEventListener('click', () => {
+      const pinInput = document.getElementById('teacherPinInput');
+      const pinError = document.getElementById('pinErrorMsg');
+      pinInput.value = '';
+      pinError.classList.add('hidden');
+      pinInput.classList.remove('border-rose-500');
+      elUnlockModal.classList.remove('hidden');
+      setTimeout(() => pinInput.focus(), 50);
+    });
+
+    document.getElementById('btnCancelUnlock').addEventListener('click', () => {
+      elUnlockModal.classList.add('hidden');
+    });
+
+    document.getElementById('unlockForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const pinInput = document.getElementById('teacherPinInput');
+      const pinError = document.getElementById('pinErrorMsg');
+      const enteredPin = pinInput.value.trim();
+
+      if (enteredPin !== TEACHER_UNLOCK_PIN) {
+        pinError.classList.remove('hidden');
+        pinInput.classList.add('border-rose-500');
+        pinInput.value = '';
+        pinInput.focus();
+        return;
+      }
+
+      // PIN correcto: levantar el bloqueo persistente y volver a la pantalla inicial
+      clearPersistentLock();
+      elUnlockModal.classList.add('hidden');
+      elResultsModal.classList.add('hidden');
+      state.isFinished = false;
+      studentProfile = { name: '', course: '' };
+
+      document.getElementById('studentNameInput').value = '';
+      document.getElementById('studentCourseInput').value = '';
+      elStartModal.classList.remove('hidden');
+      setTimeout(() => document.getElementById('studentNameInput').focus(), 50);
+    });
+
+    document.getElementById('btnResetLine').addEventListener('click', (e) => {
+      e.stopPropagation();
+      resetCurrentLine();
+    });
+
+    // 7. Interruptor para mostrar/ocultar nombres de dedos en las teclas
+    elToggleFingerGuide.addEventListener('change', (e) => {
+      const show = e.target.checked;
+      document.querySelectorAll('.finger-label').forEach(lbl => {
+        lbl.style.display = show ? '' : 'none';
+      });
+    });
+
+    // 8. Escuchar cambios del viewport visual (apertura/cierre de teclado virtual móvil y rotación)
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncViewportHeight);
+      window.visualViewport.addEventListener('scroll', syncViewportHeight);
+    }
+    window.addEventListener('resize', syncViewportHeight);
+
+    // Iniciar al cargar la ventana
+    window.addEventListener('load', () => {
+      syncViewportHeight();
+      renderProgressSegments();
+      renderCurrentExercise();
+
+      // Si la evaluación quedó bloqueada anteriormente, restaurar el bloqueo inmediatamente
+      const isLocked = checkAndRestorePersistentLock();
+      if (!isLocked) {
+        document.getElementById('studentNameInput').focus();
+      }
+    });
+  </script>
+</body>
+</html>
